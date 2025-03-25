@@ -30,7 +30,15 @@ class NotificationWindow(QMainWindow):
         
         # Configure window properties
         self.setWindowTitle(title)
-        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.Tool)
+        self.setWindowFlags(
+            Qt.WindowStaysOnTopHint |  # Keep window on top
+            Qt.Tool |                  # Utility window
+            Qt.FramelessWindowHint |   # No window frame
+            Qt.NoDropShadowWindowHint  # No shadow (cleaner look)
+        )
+        
+        if sys.platform == "darwin":  # macOS specific
+            self.setWindowFlags(self.windowFlags() | Qt.WindowDoesNotAcceptFocus)
         
         # Create central widget and layout
         central_widget = QWidget()
@@ -116,10 +124,14 @@ class NotificationManager:
         
         # Initialize Qt application if needed
         if not QApplication.instance():
+            # Set attribute to hide from dock before creating QApplication
+            if sys.platform == "darwin":  # macOS specific
+                QApplication.setAttribute(Qt.AA_MacDontSwapCtrlAndMeta)
+            
             self._app = QApplication(sys.argv)
-            print("Qt application initialized")
-        
-        print("Notification manager ready")
+            
+            if sys.platform == "darwin":  # macOS specific
+                self._app.setQuitOnLastWindowClosed(True)
     
     def show_procrastination_alert(self, procrastination_pct: float, unclear_pct: float, productive_pct: float, active_pct: float):
         """Show a notification when procrastination percentage is too high.
@@ -159,5 +171,3 @@ class NotificationManager:
 if __name__ == "__main__":
     notification_manager = NotificationManager()
     notification_manager.show_procrastination_alert(69, 0, 0, 100)
-    # Keep the application running until window is closed
-    notification_manager.run_event_loop()
