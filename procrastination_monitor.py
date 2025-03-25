@@ -13,8 +13,8 @@ from aw_client import ActivityWatchClient
 from activity_categorizer import ActivityCategorizer, ActivityCategory, RuleType
 from dateutil.tz import tzlocal
 from aw_transform.flood import flood
-
-
+from notification_manager import NotificationManager
+from PySide6.QtWidgets import QApplication
 
 def format_time_ago(time_ago: timedelta) -> str:
     """Format a timedelta into a human readable string (e.g. '5h', '3m', '45s').
@@ -57,7 +57,6 @@ def format_duration(duration: timedelta) -> str:
         return f"{minutes}m {seconds}s"
     else:
         return f"{seconds}s"
-
 
 def get_recent_activities(client: ActivityWatchClient, categorizer: ActivityCategorizer, time_window: timedelta = timedelta(minutes=5), bucket_ids_to_skip: List = [], debug_level: int = 0) -> List:
     """Get the recent activities.
@@ -174,10 +173,11 @@ def calculate_procrastination_percentage(client: ActivityWatchClient, categorize
         Float representing percentage of time spent procrastinating (0-100)
         Float representing percentage of time spent in Unclear category (0-100)
         Float representing percentage of time spent in Productive category (0-100)
+        Float representing the amount of time user was active within the time window
     """
     all_events = get_recent_activities(client, categorizer, time_window, debug_level=debug_level)
     if not all_events:
-        return 0.0, 0.0, 0.0
+        return 0.0, 0.0, 0.0, timedelta()
         
     total_duration = timedelta()
     procrastination_duration = timedelta()
@@ -224,7 +224,7 @@ def calculate_procrastination_percentage(client: ActivityWatchClient, categorize
             productive_duration += event.duration
 
     if total_duration.total_seconds() == 0:
-        return 0.0, 0.0, 0.0
+        return 0.0, 0.0, 0.0, timedelta()
 
     if debug_level >= 3:
         console.print(analysis_table)
@@ -263,33 +263,43 @@ def calculate_procrastination_percentage(client: ActivityWatchClient, categorize
     return (
         (procrastination_duration.total_seconds() / total_duration.total_seconds()) * 100,
         (unclear_duration.total_seconds() / total_duration.total_seconds()) * 100,
-        (productive_duration.total_seconds() / total_duration.total_seconds()) * 100
+        (productive_duration.total_seconds() / total_duration.total_seconds()) * 100,
+        (total_duration / time_window) * 100
     )
 
-def check_procrastination(categorizer: ActivityCategorizer, client: ActivityWatchClient, time_window: timedelta = timedelta(minutes=5), debug_level: int = 0):
+def check_procrastination(categorizer: ActivityCategorizer, client: ActivityWatchClient, notification_manager: NotificationManager, time_window: timedelta = timedelta(minutes=5), debug_level: int = 0):
     """Check if current activity is procrastination.
     
     Args:
         categorizer: ActivityCategorizer instance with rules
         client: ActivityWatch client instance
+        notification_manager: NotificationManager instance to show alerts
+        time_window: Time window to analyze (default: 5 minutes)
+        debug_level: Level of debug output (0-3)
+    """
     # Reload rules before checking
     categorizer.load_rules()
     
+    procrastination_pct, unclear_pct, productive_pct, active_pct = calculate_procrastination_percentage(client, categorizer, time_window=time_window, debug_level=debug_level)
+    print(f"{'😭' * ceil(procrastination_pct / 2)}{'❓' * ceil(unclear_pct / 2)}{'👍' * ceil(productive_pct / 2)} -- {procrastination_pct:.1f}% {unclear_pct:.1f}% {productive_pct:.1f}% {active_pct:.1f}%\n")
     
     # make ascii stacked bar chart
     print(f"{'😭' * ceil(procrastination_pct / 2)}{'❓' * ceil(unclear_pct / 2)}{'👍' * ceil(productive_pct / 2)} -- {procrastination_pct:.1f}% {unclear_pct:.1f}% {productive_pct:.1f}%")
 
+    # Show notification if procrastination is too high
+    notification_manager.show_procrastination_alert(procrastination_pct, unclear_pct, productive_pct, active_pct)
+
 def main():
     client = ActivityWatchClient("procrastination-monitor")
     categorizer = ActivityCategorizer()
+    notification_manager = NotificationManager()
     print("Starting procrastination monitor... (Press Ctrl+C to stop)")
     
-    debug_level = 1
+    debug_level = 2  # Increase debug level to see more information
     try:
         while True:
-            check_procrastination(categorizer, client, debug_level=debug_level)
-            # return
-            time.sleep(7)
+            check_procrastination(categorizer, client, notification_manager, debug_level=debug_level)
+            time.sleep(7 if debug_level >= 3 else 2)
     except KeyboardInterrupt:
         print("\nStopping procrastination monitor...")
 

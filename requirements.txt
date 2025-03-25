@@ -6,6 +6,9 @@ typing-extensions>=4.5.0
 # ActivityWatch dependencies
 aw-core>=0.5.12
 
+# Notification GUI
+PySide6
+
 # Printing tables
 rich
 
