@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import json
+import logging
 from dataclasses import dataclass
 from typing import Dict, Optional
 from enum import Enum
@@ -21,8 +23,67 @@ class ActivityRule:
     rule_type: RuleType = RuleType.APP
 
 class ActivityCategorizer:
-    def __init__(self):
+    def __init__(self, rules_file: str = "activity_rules.json"):
+        """Initialize the ActivityCategorizer with rules from a JSON file.
+        
+        Args:
+            rules_file: Path to the JSON file containing categorization rules
+        """
         self.rules: Dict[str, ActivityRule] = {}
+        self.rules_file = rules_file
+        self.load_rules()
+        
+    def load_rules(self):
+        """Load categorization rules from the JSON file.
+        
+        Each rule is loaded independently, so if one rule fails to load,
+        it won't affect other rules. Errors are logged but don't stop execution.
+        """
+        try:
+            with open(self.rules_file, 'r') as f:
+                rules_data = json.load(f)
+        except FileNotFoundError:
+            logging.warning(f"Rules file {self.rules_file} not found. Starting with empty rules.")
+            return
+        except json.JSONDecodeError as e:
+            logging.error(f"Invalid JSON in {self.rules_file}: {e}. Starting with empty rules.")
+            return
+
+        # Clear existing rules before loading new ones
+        self.rules.clear()
+        
+        # Map of internal category names to ActivityCategory enum values
+        categories = {
+            "procrastination": ActivityCategory.PROCRASTINATING,
+            "productive": ActivityCategory.PRODUCTIVE
+        }
+        
+        # Map of rule types in JSON to RuleType enum values
+        rule_types = {
+            "titles": RuleType.TITLE,
+            "urls": RuleType.URL,
+            "apps": RuleType.APP
+        }
+        
+        # Load all rules using a nested loop
+        for category_name, category_enum in categories.items():
+            category_data = rules_data.get(category_name, {})
+            for rule_type_name, rule_type_enum in rule_types.items():
+                patterns = category_data.get(rule_type_name, [])
+                for pattern in patterns:
+                    try:
+                        if not isinstance(pattern, str):
+                            logging.warning(f"Skipping invalid pattern {pattern} (not a string)")
+                            continue
+                        if not pattern.strip():
+                            logging.warning(f"Skipping empty pattern in {category_name}/{rule_type_name}")
+                            continue
+                        self.add_rule(pattern, category_enum, rule_type_enum)
+                    except Exception as e:
+                        logging.error(f"Failed to add rule {pattern} ({category_name}/{rule_type_name}): {e}")
+        
+        if not self.rules:
+            logging.warning("No valid rules were loaded")
         
     def add_rule(self, pattern: str, category: ActivityCategory, rule_type: RuleType = RuleType.APP):
         """Add a new categorization rule.

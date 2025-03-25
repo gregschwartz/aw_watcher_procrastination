@@ -14,119 +14,7 @@ from activity_categorizer import ActivityCategorizer, ActivityCategory, RuleType
 from dateutil.tz import tzlocal
 from aw_transform.flood import flood
 
-def setup_categorizer():
-    """Set up the activity categorizer with rules."""
-    categorizer = ActivityCategorizer()
-    
-    # Procrastination
-    procrastination_titles = [
-        "funny videos",
-        "memes",
-        "gaming",
-        "social media",
-        "entertainment",
-        "news",
-        "gossip",
-        "shopping",
-        "online games",
-        "viral videos",
-        "reddit",
-        "tiktok",
-        "instagram",
-        "pinterest",
-        "twitch",
-        "youtube",
-        "the verge",
-        "the guardian",
-        "nytimes",
-        "wsj",
-        "bloomberg",
-        "partiful",
-        "eventbrite",
-    ]
-    for title in procrastination_titles:
-        categorizer.add_rule(title, ActivityCategory.PROCRASTINATING, RuleType.TITLE)
-    
-    procrastination_sites = [
-        "facebook.com",
-        "twitter.com",
-        "x.tv",
-        "youtube.com",
-        "reddit.com",
-        "instagram.com",
-        "tiktok.com",
-        "pinterest.com",
-        "twitch.tv",
-        "theverge.com",
-        "theguardian.com",
-        "nytimes.com",
-        "wsj.com",
-        "bloomberg.com",
-        "partiful.com",
-        "eventbrite.com",
-    ]
-    for site in procrastination_sites:
-        categorizer.add_rule(site, ActivityCategory.PROCRASTINATING, RuleType.URL)
-    
-    procrastination_apps = [
-        "Spotify",
-        "WhatsApp",
-    ]
-    for app in procrastination_apps:
-        categorizer.add_rule(app, ActivityCategory.PROCRASTINATING, RuleType.APP)
 
-    # Productive
-    productive_titles = [
-        "pull request",
-        "code review",
-        "jira ticket",
-        "documentation",
-        "meeting notes",
-        "sprint planning",
-        "standup",
-        "retrospective",
-        "technical design",
-        "architecture",
-        "debugging",
-        "unit test",
-        "integration test",
-        "api",
-    ]
-    for title in productive_titles:
-        categorizer.add_rule(title, ActivityCategory.PRODUCTIVE, RuleType.TITLE)
-    
-    productive_sites = [
-        "github.com",
-        "stackoverflow.com",
-        "docs.google.com",
-        "jira",
-        "confluence",
-        "gitlab",
-        "bitbucket",
-        "atlassian",
-        "applyall.com",
-        "readthedocs.io",
-    ]
-    for site in productive_sites:
-        categorizer.add_rule(site, ActivityCategory.PRODUCTIVE, RuleType.URL)
-        categorizer.add_rule(site, ActivityCategory.PRODUCTIVE, RuleType.TITLE)
-    
-    productive_apps = [
-        "Cursor",
-        "Visual Studio Code",
-        "vscode",
-        "PyCharm",
-        "IntelliJ",
-        "Google Docs",
-        "Microsoft Word",
-        "Excel",
-        "PowerPoint",
-        "slack"
-    ]
-    for app in productive_apps:
-        categorizer.add_rule(app, ActivityCategory.PRODUCTIVE, RuleType.APP)
-    
-    return categorizer
 
 def format_time_ago(time_ago: timedelta) -> str:
     """Format a timedelta into a human readable string (e.g. '5h', '3m', '45s').
@@ -210,7 +98,7 @@ def get_recent_activities(client: ActivityWatchClient, categorizer: ActivityCate
             url = event.data.get("url", "")
             title = event.data.get('title', '')
             
-            if debug_level >= 2:
+            if debug_level >= 3:
                 print(f"\nPre customize, Event: Bucket: {event.bucket_id_short} App: {app}\n\tTitle: {title}\n\tURL: {url}\n\tdata: {event.data}")
             
             if "vscode" in event.bucket_id_short or "cursor" in event.bucket_id_short:
@@ -251,7 +139,7 @@ def get_recent_activities(client: ActivityWatchClient, categorizer: ActivityCate
         print(f"\n\n--- Found {len(all_events)} events in total ---")
 
     console = Console()
-    table = Table(title="Activity History")
+    table = Table()
     table.add_column("Time", justify="right")
     table.add_column("Duration", justify="left")
     table.add_column("", justify="center")
@@ -265,7 +153,7 @@ def get_recent_activities(client: ActivityWatchClient, categorizer: ActivityCate
         table.add_row(event.time_tz, event.duration_str, event.category_str if event.duration > timedelta(seconds=1) else "", event.bucket_id_short, event.app, event.title, event.url, style="green" if event.category == ActivityCategory.PRODUCTIVE else "red" if event.category == ActivityCategory.PROCRASTINATING else "")
 
     if debug_level >= 1:
-        console.print(table)
+        console.print(table) 
     return all_events
 
 def get_current_activity(client: ActivityWatchClient, categorizer: ActivityCategorizer, time_window: timedelta = timedelta(minutes=5)) -> tuple[str, str]:
@@ -296,7 +184,18 @@ def calculate_procrastination_percentage(client: ActivityWatchClient, categorize
     unclear_duration = timedelta()
     productive_duration = timedelta()
 
-    for event in all_events:
+    # Filter out very short events (less than 1 second)
+    MIN_DURATION = timedelta(seconds=1)
+    filtered_events = [event for event in all_events if event.duration >= MIN_DURATION]
+
+    if debug_level >= 2:
+        console = Console()
+        analysis_table = Table(title=f"Event Analysis ({len(filtered_events)} events, filtered from {len(all_events)} total)")
+        analysis_table.add_column("App")
+        analysis_table.add_column("Duration")
+        analysis_table.add_column("Category")
+
+    for event in filtered_events:
         app = event.data.get("app", "")
         url = event.data.get("url", "")
         title = event.data.get('title', '')
@@ -308,6 +207,14 @@ def calculate_procrastination_percentage(client: ActivityWatchClient, categorize
             
         category = categorizer.categorize_activity(app, url, title)
         
+        if debug_level >= 2:
+            analysis_table.add_row(
+                app,
+                format_duration(event.duration),
+                str(category),
+                style="green" if category == ActivityCategory.PRODUCTIVE else "red" if category == ActivityCategory.PROCRASTINATING else ""
+            )
+
         total_duration += event.duration
         if category == ActivityCategory.PROCRASTINATING:
             procrastination_duration += event.duration
@@ -318,6 +225,40 @@ def calculate_procrastination_percentage(client: ActivityWatchClient, categorize
 
     if total_duration.total_seconds() == 0:
         return 0.0, 0.0, 0.0
+
+    if debug_level >= 3:
+        console.print(analysis_table)
+        
+        summary_table = Table(title="Duration Summary")
+        summary_table.add_column("Category")
+        summary_table.add_column("Duration")
+        summary_table.add_column("Percentage")
+        
+        summary_table.add_row(
+            "Total",
+            format_duration(total_duration),
+            "100%"
+        )
+        summary_table.add_row(
+            "Procrastination",
+            format_duration(procrastination_duration),
+            f"{(procrastination_duration.total_seconds() / total_duration.total_seconds()) * 100:.1f}%",
+            style="red"
+        )
+        summary_table.add_row(
+            "Unclear",
+            format_duration(unclear_duration),
+            f"{(unclear_duration.total_seconds() / total_duration.total_seconds()) * 100:.1f}%"
+        )
+        summary_table.add_row(
+            "Productive",
+            format_duration(productive_duration),
+            f"{(productive_duration.total_seconds() / total_duration.total_seconds()) * 100:.1f}%",
+            style="green"
+        )
+        
+        if debug_level >= 2:
+            console.print(summary_table)
         
     return (
         (procrastination_duration.total_seconds() / total_duration.total_seconds()) * 100,
@@ -331,21 +272,16 @@ def check_procrastination(categorizer: ActivityCategorizer, client: ActivityWatc
     Args:
         categorizer: ActivityCategorizer instance with rules
         client: ActivityWatch client instance
-    """
-    # app_name, url = get_current_activity(client, categorizer)
+    # Reload rules before checking
+    categorizer.load_rules()
     
-    # if app_name == "idle":
-    #     print(f"{datetime.now(tzlocal())}: User is idle")
-        
-    procrastination_pct, unclear_pct, productive_pct = calculate_procrastination_percentage(client, categorizer, time_window=time_window, debug_level=debug_level)
-    # print(f"Last 5 minutes, Procrastination: {procrastination_pct:.1f}%, Unclear: {unclear_pct:.1f}%, Productive: {productive_pct:.1f}%")
     
     # make ascii stacked bar chart
     print(f"{'😭' * ceil(procrastination_pct / 2)}{'❓' * ceil(unclear_pct / 2)}{'👍' * ceil(productive_pct / 2)} -- {procrastination_pct:.1f}% {unclear_pct:.1f}% {productive_pct:.1f}%")
 
 def main():
     client = ActivityWatchClient("procrastination-monitor")
-    categorizer = setup_categorizer()
+    categorizer = ActivityCategorizer()
     print("Starting procrastination monitor... (Press Ctrl+C to stop)")
     
     debug_level = 1
