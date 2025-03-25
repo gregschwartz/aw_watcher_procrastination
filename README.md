@@ -25,6 +25,10 @@ source .venv/bin/activate  # On Unix/macOS
 pip install -r requirements.txt
 ```
 
+Install the watchers for your:
+- Browser: [aw-watcher-web](https://github.com/ActivityWatch/aw-watcher-web) - The official browser extension, supports Chrome, Edge, and Firefox. If you're using a different browser, please let me know.
+- IDE: [VSCode/Cursor](https://github.com/ActivityWatch/aw-watcher-vscode), many others available, see [this list](https://docs.activitywatch.net/en/latest/watchers.html#editor-watchers)
+
 ## Usage
 
 Run the script:
