@@ -93,7 +93,7 @@ def test_update_settings_dict_or_list(settings_filename, settings_object):
 def test_update_dict_recursively():
     """Test recursive dictionary updating."""
     target = {
-        "a": 1,
+        "a": 10,
         "b": {
             "c": 2
         }
@@ -109,9 +109,9 @@ def test_update_dict_recursively():
     
     result, updated = Settings._update_recursively(target, source)
     assert updated is True
+    assert result["a"] == 10 # 
     assert result["b"]["d"] == 3
     assert result["e"] == 4
-    assert result["a"] == 1
     assert result["b"]["c"] == 2
 
 def test_fix_json_content():

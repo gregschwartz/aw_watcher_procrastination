@@ -33,43 +33,52 @@ def categorizer(temp_rules_file):
 def test_categorize_productive_app(categorizer):
     """Test categorizing a productive app."""
     print("categorizer: ", categorizer.rules)
-    category = categorizer.categorize_activity("vscode", "", "")
-    assert category == ActivityCategory.PRODUCTIVE
+    assert categorizer.categorize_activity("vscode", "", "") == ActivityCategory.PRODUCTIVE
+    assert categorizer.categorize_activity("VSCode", "", "") == ActivityCategory.PRODUCTIVE
+    assert categorizer.categorize_activity("vscode", "/user/repo/thing.py", "") == ActivityCategory.PRODUCTIVE
+    assert categorizer.categorize_activity("vscode", "/user/repo/thing.py", "blah blah") == ActivityCategory.PRODUCTIVE
 
 def test_categorize_procrastination_app(categorizer):
     """Test categorizing a procrastination app."""
-    category = categorizer.categorize_activity("steam", "", "")
-    assert category == ActivityCategory.PROCRASTINATING
+    assert categorizer.categorize_activity("steam", "", "") == ActivityCategory.PROCRASTINATING
+    assert categorizer.categorize_activity("STEAM", "", "") == ActivityCategory.PROCRASTINATING
 
 def test_categorize_productive_url(categorizer):
     """Test categorizing a productive URL."""
-    category = categorizer.categorize_activity("chrome", "github.com/user/repo", "")
-    assert category == ActivityCategory.PRODUCTIVE
+    assert categorizer.categorize_activity("chrome", "github.com/user/repo", "") == ActivityCategory.PRODUCTIVE
+    assert categorizer.categorize_activity("chrome", "github.com/user/repo", "blah blah") == ActivityCategory.PRODUCTIVE
 
 def test_categorize_procrastination_url(categorizer):
     """Test categorizing a procrastination URL."""
-    category = categorizer.categorize_activity("chrome", "facebook.com/feed", "")
-    assert category == ActivityCategory.PROCRASTINATING
+    assert categorizer.categorize_activity("chrome", "facebook.com/feed", "") == ActivityCategory.PROCRASTINATING
+    assert categorizer.categorize_activity("chrome", "facebook.com/feed", "blah blah") == ActivityCategory.PROCRASTINATING
 
 def test_categorize_productive_title(categorizer):
     """Test categorizing a productive title."""
-    category = categorizer.categorize_activity("", "", "coding project")
-    assert category == ActivityCategory.PRODUCTIVE
+    assert categorizer.categorize_activity("", "", "coding project") == ActivityCategory.PRODUCTIVE
+    assert categorizer.categorize_activity("", "", "CODING PROJECT") == ActivityCategory.PRODUCTIVE
 
 def test_categorize_procrastination_title(categorizer):
     """Test categorizing a procrastination title."""
-    category = categorizer.categorize_activity("", "", "gaming stream")
-    assert category == ActivityCategory.PROCRASTINATING
+    assert categorizer.categorize_activity("", "", "gaming stream") == ActivityCategory.PROCRASTINATING
+    assert categorizer.categorize_activity("", "", "GAMING STREAM") == ActivityCategory.PROCRASTINATING
 
 def test_categorize_unclear(categorizer):
     """Test categorizing an unclear activity."""
-    category = categorizer.categorize_activity("unknown", "example.com", "random title")
-    assert category == ActivityCategory.UNCLEAR
+    assert categorizer.categorize_activity("", "", "") == ActivityCategory.UNCLEAR
+    assert categorizer.categorize_activity("", "example.com", "") == ActivityCategory.UNCLEAR
+    assert categorizer.categorize_activity("", "example.com", "random title") == ActivityCategory.UNCLEAR
+    assert categorizer.categorize_activity("", "", "random title") == ActivityCategory.UNCLEAR
+    assert categorizer.categorize_activity("unknown", "", "") == ActivityCategory.UNCLEAR
+    assert categorizer.categorize_activity("unknown", "example.com", "") == ActivityCategory.UNCLEAR
+    assert categorizer.categorize_activity("unknown", "", "random title") == ActivityCategory.UNCLEAR
+    assert categorizer.categorize_activity("unknown", "example.com", "random title") == ActivityCategory.UNCLEAR
 
 def test_add_rule(categorizer):
     """Test adding a new rule."""
     categorizer.add_rule(ActivityCategory.PRODUCTIVE, "apps", "intellij")
     assert "intellij" in categorizer.rules["productive"]["apps"]
+    assert "intellij" not in categorizer.rules["procrastination"]["apps"]
 
 def test_remove_rule(categorizer):
     """Test removing a rule."""
@@ -82,7 +91,3 @@ def test_status_to_emoji():
     assert ActivityCategorizer.status_to_emoji(ActivityCategory.PROCRASTINATING) == "❌"
     assert ActivityCategorizer.status_to_emoji(ActivityCategory.UNCLEAR) == "❓"
 
-def test_case_insensitive_matching(categorizer):
-    """Test that rule matching is case insensitive."""
-    category = categorizer.categorize_activity("VSCode", "GITHUB.COM", "CODING")
-    assert category == ActivityCategory.PRODUCTIVE 
