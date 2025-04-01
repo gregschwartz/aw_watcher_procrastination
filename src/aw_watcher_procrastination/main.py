@@ -20,6 +20,8 @@ def main():
 
     app = QApplication(sys.argv)
     client = ActivityWatchClient("aw-procrastination-monitor")
+    client.connect()  # Explicitly connect the client
+    
     categorizer = ActivityCategorizer()
     event_processor = EventProcessor(client, categorizer)
     notification_window = NotificationWindow(event_processor, categorizer)
@@ -38,7 +40,7 @@ def main():
         print(f"{'😭' * ceil(proc_pct / 2) if proc_pct > 0.1 else ''}{'❓' * ceil(unclear_pct / 2) if unclear_pct > 0.0 else ''}{'👍' * ceil(prod_pct / 2) if prod_pct > 0.1 else ''} -- {proc_pct:.0f}% {unclear_pct:.0f}% {prod_pct:.0f}%")
 
         if proc_pct >= procrastination_threshold and active_pct >= active_threshold:
-            print("Showing alert")
+            print("Triggering alert")
             notification_window.show_alert(proc_pct, unclear_pct, prod_pct, active_pct)
         else:
             print(f"proc_pct >= procrastination_threshold: {proc_pct >= procrastination_threshold}, active_pct < active_threshold: {active_pct < active_threshold}")
@@ -60,8 +62,12 @@ def main():
         """Handle shutdown cleanly and quickly."""
         print("\nShutting down...")
         timer.stop()
-        client.disconnect()
         app.quit()
+        try:
+            client.disconnect()
+        except RuntimeError as e:
+            print("Error: Client wasn't properly disconnected", e)
+
         sys.exit(0)
 
     # Set up signal handling
@@ -69,7 +75,11 @@ def main():
     signal.signal(signal.SIGTERM, clean_shutdown)
 
     # Start the application
-    sys.exit(app.exec())
+    try:
+        return app.exec()
+    except Exception as e:
+        print("Error: Application exited with an error", e)
+        clean_shutdown()
 
 if __name__ == "__main__":
     main() 

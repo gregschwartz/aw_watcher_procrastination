@@ -6,7 +6,7 @@ Rather than having many print statements across multiple lines, prefer print sta
 
 Strongly prefer using a library instead of reinventing the wheel. 
 
-Never suggest inserting multiple copies of the same line.
+You can suggest inserting up to 1 copy of the same line.
 
 **Python**:
 - Use pytest when writing unit tests in Python.
