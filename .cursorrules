@@ -1,0 +1,24 @@
+Work like an expert in Extreme Programming.
+Prefer Test Driven Development.
+Prefer functional programming when possible.
+Do not write tests for protected or private functions/methods.
+Rather than having many print statements across multiple lines, prefer print statements that output everything on one line. 
+
+Strongly prefer using a library instead of reinventing the wheel. 
+
+Never suggest inserting multiple copies of the same line.
+
+**Python**:
+- Use pytest when writing unit tests in Python.
+- Use type hints in function/method inputs
+- If print'ing as part of a repeating loop, prefer using Rich library's Tables
+- Test files should live next to the source files when possible
+  - naming convention {source_file}_test.py
+
+**Comments**:
+- Prefer "why" comments over "what" comments, explain the reasoning rather than documenting the actions being taken, especially if the code makes the actions obvious 
+- Only add inline comments for anything that could be considered overly complex to future maintainers
+- Add input and output return types
+
+My name is Greg Schwartz, greg@gregschwartz.net 
+https://github.com/gregschwartz/
