@@ -8,12 +8,12 @@
 import re
 from datetime import datetime, timezone
 
-from unidecode import unidecode
 
 
 def fix_id(question_id: str) -> str:
     """Replaces forbidden characters in a question_id."""
-    return re.sub(r"[^a-z0-9]", ".", unidecode(question_id).lower())
+    # from unidecode import unidecode
+    # return re.sub(r"[^a-z0-9]", ".", unidecode(question_id).lower())
 
 
 def is_valid_id(question_id: str) -> bool:
