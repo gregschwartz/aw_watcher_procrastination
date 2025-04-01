@@ -7,44 +7,26 @@ import re
 from typing import Dict, Any, Tuple
 
 DEFAULT_SETTINGS = {
-    "bucket_ids_to_skip": [
-        "aw-watcher-afk_",
-        "aw-watcher-input_"
-    ],
+    "bucket_ids_to_skip": ["aw-watcher-afk_", "aw-watcher-input_"],
     "thresholds": {
-        "procrastination_threshold": 30.0,
-        "active_threshold": 70.0,
+        "min_procrastination_percent": 30,
+        "min_active_percent": 70,
     },
-    "check_interval": 300,
-    "notification_timeout": 30,
-    "delay_showing_popup_again_seconds": 300,  # 5 minutes minimum between popups
+    "notifications": {
+        "check_last_seconds": 300,
+        "check_interval_seconds": 10,
+        "delay_showing_popup_again_seconds": 120
+    },
     "window_sizes": {
         "notification": {
-            "default": {
-                "width": 600,
-                "height": 500
-            },
-            "expanded": {
-                "width": 600,
-                "height": 700
-            }
+            "default": { "width": 600, "height": 500 },
+            "expanded": { "width": 600, "height": 700 }
         },
-        "browser": {
-            "width": 1200,
-            "height": 800
-        }
+        "browser": { "width": 1200, "height": 800 }
     },
     "activity_rules": {
-        "procrastination": {
-            "titles": [],
-            "apps": [],
-            "urls": []
-        },
-        "productive": {
-            "titles": [],
-            "apps": [],
-            "urls": []
-        }
+        "procrastination": { "titles": [], "apps": [], "urls": [] },
+        "productive": { "titles": [], "apps": [], "urls": [] }
     }
 }
 
