@@ -2,18 +2,140 @@
 
 import json
 import os
-from typing import Dict, Any
+import sys
+import re
+from typing import Dict, Any, Tuple
 
 DEFAULT_SETTINGS = {
     "bucket_ids_to_skip": [
         "aw-watcher-afk_",
         "aw-watcher-input_"
     ],
-    "procrastination_threshold": 30.0,  # Percentage threshold for procrastination alerts
-    "active_threshold": 70.0,           # Percentage threshold for considering time as active
-    "check_interval": 300,              # Check interval in seconds (5 minutes)
-    "notification_timeout": 30,         # Notification timeout in seconds
+    "thresholds": {
+        "procrastination_threshold": 30.0,
+        "active_threshold": 70.0,
+    },
+    "check_interval": 300,
+    "notification_timeout": 30,
+    "window_sizes": {
+        "notification": {
+        "default": {
+            "width": 600,
+            "height": 500
+        },
+        "expanded": {
+            "width": 600,
+            "height": 700
+        }
+        },
+        "browser": {
+        "width": 1200,
+        "height": 800
+        }
+    },
+    "activity_rules": {
+        "procrastination": {
+            "titles": [],
+            "apps": [],
+            "urls": []
+        },
+        "productive": {
+            "titles": [],
+            "apps": [],
+            "urls": []
+        }
+    }
 }
+
+def update_dict_recursively(target: Dict[str, Any], source: Dict[str, Any]) -> bool:
+    """Recursively update a dictionary with values from another dictionary.
+    
+    Args:
+        target: Dictionary to update
+        source: Dictionary to copy values from
+        
+    Returns:
+        True if any values were updated, False otherwise
+    """
+    updated = False
+    for key, value in source.items():
+        if key not in target:
+            target[key] = value
+            updated = True
+        elif isinstance(value, dict) and isinstance(target[key], dict):
+            target[key], updated = update_dict_recursively(target[key], value)
+    return target, updated
+
+def fix_json_content(content: str) -> Tuple[str, bool]:
+    """Fix common JSON formatting issues.
+    
+    Args:
+        content: JSON content string
+        
+    Returns:
+        Tuple of (fixed content, whether changes were made)
+    """
+    original = content
+    
+    # Fix trailing commas in objects (handles multi-line and single-line)
+    content = re.sub(r',(\s*})(?=[^}]*$)', r'\1', content, count=0, flags=re.MULTILINE)
+    
+    # Fix trailing commas in arrays (handles multi-line and single-line)
+    content = re.sub(r',(\s*\])(?=[^\]]*$)', r'\1', content, count=0, flags=re.MULTILINE)
+    
+    # Remove multiple trailing commas in objects
+    content = re.sub(r',+(\s*})(?=[^}]*$)', r'\1', content, count=0, flags=re.MULTILINE)
+    
+    # Remove multiple trailing commas in arrays
+    content = re.sub(r',+(\s*\])(?=[^\]]*$)', r'\1', content, count=0, flags=re.MULTILINE)
+    
+    # Fix trailing commas after values in objects
+    content = re.sub(r',([\s\n]*)(}|\])', r'\1\2', content, count=0)
+    
+    # Fix multiple consecutive commas between values
+    content = re.sub(r',\s*,+', ',', content, count=0)
+    
+    return content, content != original
+
+def try_load_json(file_path: str) -> Dict[str, Any]:
+    """Try to load and fix JSON if needed.
+    
+    Args:
+        file_path: Path to the JSON file
+        
+    Returns:
+        Parsed JSON dictionary
+        
+    Raises:
+        SystemExit: If JSON cannot be parsed even after fixes
+    """
+    with open(file_path, 'r') as f:
+        content = f.read()
+    
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        # Try to fix common JSON issues
+        fixed_content, made_changes = fix_json_content(content)
+        try:
+            result = json.loads(fixed_content)
+            if made_changes:
+                # Only save if the fixes worked
+                with open(file_path, 'w') as f:
+                    f.write(fixed_content)
+            return result
+        except json.JSONDecodeError:
+            # If still can't parse, show the error location
+            print(f"Error in settings file {file_path}:")
+            lines = fixed_content.splitlines()
+            for i, line in enumerate(lines, 1):
+                print(f"{i}: {line}")
+            print("\nJSON parsing error. Please check the file format.")
+            sys.exit(1)
+        except Exception as e:
+            print(f"Error reading settings file {file_path}:")
+            print(e)
+            sys.exit(1)
 
 def load_settings(settings_file: str = "settings.json") -> Dict[str, Any]:
     """Load settings from the settings file.
@@ -30,17 +152,11 @@ def load_settings(settings_file: str = "settings.json") -> Dict[str, Any]:
     if not os.path.exists(settings_file):
         save_settings(DEFAULT_SETTINGS, settings_file)
         return DEFAULT_SETTINGS.copy()
-        
-    with open(settings_file, 'r') as f:
-        settings = json.load(f)
-        
-    # Update settings with any missing defaults
-    updated = False
-    for key, value in DEFAULT_SETTINGS.items():
-        if key not in settings:
-            settings[key] = value
-            updated = True
-            
+    
+    settings = try_load_json(settings_file)
+    
+    # Update settings with any missing defaults recursively
+    settings, updated = update_dict_recursively(settings, DEFAULT_SETTINGS)
     if updated:
         save_settings(settings, settings_file)
         
@@ -65,18 +181,35 @@ def update_setting(key: str, value: Any, settings_file: str = "settings.json") -
         settings_file: Path to the settings JSON file
     """
     settings = load_settings(settings_file)
-    settings[key] = value
+    # use dot notation to update the setting
+    keys = key.split(".")
+    current = settings
+    for k in keys[:-1]:  # Iterate through all but last key
+        if not isinstance(current, dict):
+            raise ValueError(f"Setting {key} is not a dictionary")
+        current = current[k]
+    current[keys[-1]] = value  # Set value at final key
     save_settings(settings, settings_file)
 
 def get_setting(key: str, settings_file: str = "settings.json") -> Any:
-    """Get a single setting value.
+    """Get a single setting value using dot notation for nested settings.
     
     Args:
-        key: The setting key to retrieve
+        key: The setting key to retrieve using dot notation (e.g. "thresholds.procrastination_threshold")
         settings_file: Path to the settings JSON file
         
     Returns:
         The value of the requested setting
+        
+    Examples:
+        >>> get_setting("thresholds.procrastination_threshold")
+        30.0
+        >>> get_setting("window_sizes.notification.default.width")
+        600
     """
     settings = load_settings(settings_file)
-    return settings.get(key, DEFAULT_SETTINGS.get(key))
+    keys = key.split(".")
+    current = settings
+    for k in keys:
+        current = current[k]
+    return current
