@@ -2,26 +2,22 @@
 
 from math import ceil
 import sys
-import os
-from datetime import timedelta
+from datetime import timedelta, datetime
 import signal
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import QTimer, QSocketNotifier
+from PyQt6.QtCore import QTimer
 from aw_client import ActivityWatchClient
 
 from .activity_categorizer import ActivityCategorizer
 from .event_processor import EventProcessor
 from .notification_window import NotificationWindow
 from .settings import Settings
-from .updater import ensure_latest_version
+# from .updater import ensure_latest_version
 
 def main():
     """Main entry point for the application."""
     print("Starting application...")
 
-    # Check for updates
-    # ensure_latest_version()
-    
     app = QApplication(sys.argv)
     client = ActivityWatchClient("aw-procrastination-monitor")
     categorizer = ActivityCategorizer()
@@ -47,27 +43,30 @@ def main():
         else:
             print(f"proc_pct >= procrastination_threshold: {proc_pct >= procrastination_threshold}, active_pct < active_threshold: {active_pct < active_threshold}")
 
-
-    # Set up timer for periodic checks
+    last_check = datetime.now() - timedelta(days=1) # so it checks immediately
+    def check_if_needed():
+        """Only perform the check if enough time has passed."""
+        nonlocal last_check
+        now = datetime.now()
+        if (now - last_check).total_seconds() >= check_interval:
+            check_procrastination()
+            last_check = now
+    
     timer = QTimer()
-    timer.timeout.connect(check_procrastination)
-    timer.start(check_interval * 1000)  # Convert seconds to milliseconds
-    print(f"Timer will run every {check_interval} seconds")
-    
-    # Set up signal handling through Qt
-    sn = QSocketNotifier(signal.SIGINT, QSocketNotifier.Type.Exception)
-    
-    def handle_signal():
-        """Handle the signal in Qt's event loop."""
-        sn.setEnabled(False)
-        print("\nShutting down...")
-        client.disconnect()
-        os._exit(1)
-    
-    sn.activated.connect(handle_signal)
+    timer.timeout.connect(check_if_needed)
+    timer.start(500)  # Check every 500ms
 
-    # Run check immediately
-    check_procrastination()
+    def clean_shutdown(signum=None, frame=None):
+        """Handle shutdown cleanly and quickly."""
+        print("\nShutting down...")
+        timer.stop()
+        client.disconnect()
+        app.quit()
+        sys.exit(0)
+
+    # Set up signal handling
+    signal.signal(signal.SIGINT, clean_shutdown)
+    signal.signal(signal.SIGTERM, clean_shutdown)
 
     # Start the application
     sys.exit(app.exec())
