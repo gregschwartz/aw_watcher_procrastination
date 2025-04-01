@@ -1,14 +1,12 @@
-# Activity Categorizer
+# ActivityWatch Procrastination Monitor
 
-A Python library for categorizing activities in ActivityWatch as productive, procrastinating, or unclear.
+A Python application that monitors your activity using ActivityWatch and alerts you when you're procrastinating.
 
 ## Features
 
-- Rule-based activity categorization
-- URL and application name matching
-- Case-insensitive pattern matching
-- Configurable categorization rules
-- Integration with ActivityWatch
+- Real-time activity monitoring through ActivityWatch
+- Alerts when you're procrastinating
+- Mini browser to chat with your productivity assistant
 
 ## Installation
 
@@ -39,7 +37,52 @@ A Python library for categorizing activities in ActivityWatch as productive, pro
 
 ## Usage
 
-Run the script it will begin monitoring your activity and show you a notification if you're procrastinating:
+Start the application:
 ```bash
-python procrastination-monitor.py
+python -m src.main
 ```
+
+
+## Testing
+
+The project includes both unit tests and integration tests. To run the tests:
+
+1. Install test dependencies:
+```bash
+pip install pytest pytest-cov pytest-mock
+```
+
+2. Run all tests with coverage report:
+```bash
+pytest --cov=src tests/
+```
+
+3. Run specific test categories:
+```bash
+# Run only unit tests
+pytest tests/unit/
+
+# Run only integration tests
+pytest tests/integration/
+
+# Run a specific test file
+pytest tests/unit/test_activity_categorizer.py
+```
+
+### Test Structure
+
+- `tests/unit/`: Unit tests for individual components
+  - `test_activity_categorizer.py`: Tests for activity categorization
+  - `test_time_utils.py`: Tests for time-related utilities
+  
+- `tests/integration/`: Integration tests
+  - `test_event_processing.py`: Tests for event processing with ActivityWatch
+
+### Writing Tests
+
+When adding new features, please add corresponding tests:
+
+1. Unit tests for new functions/methods
+2. Integration tests for features that interact with multiple components
+3. Mock external dependencies (ActivityWatch client, file system, etc.)
+4. Use pytest fixtures for common test setup

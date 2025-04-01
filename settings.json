@@ -1,0 +1,30 @@
+{
+  "bucket_ids_to_skip": [
+    "aw-watcher-afk_",
+    "aw-watcher-input_"
+  ],
+  "thresholds": {
+    "min_procrastination_pct": 1,
+    "min_active_pct": 70
+  },
+  "window_sizes": {
+    "notification": {
+      "default": {
+        "width": 600,
+        "height": 300
+      },
+      "expanded": {
+        "width": 600,
+        "height": 700
+      }
+    },
+    "browser": {
+      "width": 1200,
+      "height": 800
+    }
+  },
+  "procrastination_threshold": 30.0,
+  "active_threshold": 70.0,
+  "check_interval": 10,
+  "notification_timeout": 30
+}
