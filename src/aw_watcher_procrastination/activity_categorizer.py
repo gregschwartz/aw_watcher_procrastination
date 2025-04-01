@@ -1,9 +1,8 @@
 """Activity categorization functionality."""
 
 from enum import Enum
-from typing import Dict, List, Optional
-import json
-import os
+from typing import Dict
+from .settings import Settings
 
 class ActivityCategory(Enum):
     """Enumeration of possible activity categories."""
@@ -14,40 +13,29 @@ class ActivityCategory(Enum):
 class ActivityCategorizer:
     """Categorizes activities based on rules."""
     
-    def __init__(self, rules_file: str = "activity_rules.json"):
+    def __init__(self, rules_file: str = "settings.json"):
         """Initialize the activity categorizer.
         
         Args:
-            rules_file: Path to the rules JSON file
+            rules_file: Path to the settings JSON file
         """
-        self.rules_file = rules_file
+        self.settings = Settings(rules_file)
         self.load_rules()
 
     def load_rules(self) -> Dict:
-        """Load categorization rules from the rules file.
+        """Load categorization rules from the settings file.
         
         Returns:
             Dictionary containing the rules
         """
-        if not os.path.exists(self.rules_file):
-            self.rules = {
-                "productive": {"titles": [], "urls": [], "apps": []},
-                "procrastination": {"titles": [], "urls": [], "apps": []}
-            }
-            return True
-            
-        try:
-            with open(self.rules_file, 'r') as f:
-                self.rules = json.load(f)
-                return True
-        except Exception as e:
-            print(f"Error loading rules: {e}")
-            return False
-            
+        # Reload settings file
+        self.settings.load()
+        self.rules = self.settings.get("activity_rules")
+        return self.rules
+
     def save_rules(self) -> None:
-        """Save the current rules to the rules file."""
-        with open(self.rules_file, 'w') as f:
-            json.dump(self.rules, f, indent=2)
+        """Save the current rules to the settings file."""
+        self.settings.update("activity_rules", self.rules)
 
     def categorize_activity(self, app: str, url: str, title: str) -> ActivityCategory:
         """Categorize an activity based on its properties.

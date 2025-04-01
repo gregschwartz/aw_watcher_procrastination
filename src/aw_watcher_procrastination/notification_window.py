@@ -1,7 +1,8 @@
 """Notification window UI functionality."""
 
-from datetime import datetime, timedelta
-from typing import List, Optional, Tuple
+from typing import Optional
+import webbrowser
+from datetime import datetime
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -9,11 +10,13 @@ from PyQt6.QtWidgets import (
     QHeaderView
 )
 from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtCharts import QChart, QPieSeries, QChartView
+from PyQt6.QtGui import QPainter, QFont
 
-from src.activity_categorizer import ActivityCategorizer, ActivityCategory
-from src.event_processor import EventProcessor
-from src.settings import get_setting
-from src.time_utils import format_duration, calculate_end_time
+from .activity_categorizer import ActivityCategorizer, ActivityCategory
+from .event_processor import EventProcessor
+from .settings import Settings
+from .time_utils import format_duration, calculate_end_time
 
 class NotificationWindow(QMainWindow):
     """Main notification window for displaying procrastination alerts."""
@@ -29,12 +32,13 @@ class NotificationWindow(QMainWindow):
         
         self.event_processor = event_processor
         self.categorizer = categorizer
-        self.settings = get_setting("window_sizes")
+        self.settings = Settings()
         
         # Initialize window attributes
         self._browser_window: Optional[QMainWindow] = None
         self._category_editor: Optional[CategoryEditor] = None
-        
+        self._last_shown: Optional[datetime] = None
+
         # Set up the UI
         self._init_ui()
         
@@ -48,42 +52,59 @@ class NotificationWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
-        main_layout = QHBoxLayout()
+        main_layout = QVBoxLayout()
         central_widget.setLayout(main_layout)
+
+        title = QLabel("Procrastinating?")
+        title.setStyleSheet("QLabel { font-size: 24px; font-weight: bold; }")
+        main_layout.addWidget(title)
+
+        subtitle = QLabel(f"In the last {self.settings.get('notifications.check_last_seconds')/60:.0f} minutes:")
+        subtitle.setStyleSheet("QLabel { font-size: 18px; }")
+        main_layout.addWidget(subtitle)
         
-        # Create left panel for alert content
-        left_panel = QWidget()
-        left_layout = QVBoxLayout()
-        left_panel.setLayout(left_layout)
+        # Create chart container with horizontal layout
+        chart_container = QWidget()
+        chart_layout = QHBoxLayout()
+        chart_container.setLayout(chart_layout)
+        
+        # Add pie chart
+        self.chart_view = QChartView()
+        self.chart_view.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.chart_view.setMinimumHeight(200)  # Set minimum height for better visibility
+        chart_layout.addWidget(self.chart_view)
+        
+        main_layout.addWidget(chart_container)
         
         # Add alert message
         self.message_label = QLabel()
         self.message_label.setWordWrap(True)
-        left_layout.addWidget(self.message_label)
+        main_layout.addWidget(self.message_label)
         
         # Add buttons
-        button_layout = QHBoxLayout()
+        chat_button = QPushButton("Get back on track: chat with Procrastination Assistant")
+        chat_button.setStyleSheet("QPushButton { color: white; background-color: #28a745; padding: 10px; border-radius: 5px; font-weight: bold; }")
+        chat_button.clicked.connect(self._open_chat)
+        main_layout.addWidget(chat_button)
         
-        self.edit_button = QPushButton("Edit Categorization")
+        close_button = QPushButton("I know what I need and I can do it now, close popup")
+        close_button.setStyleSheet("QPushButton { padding: 10px; border-radius: 5px; }")
+        close_button.clicked.connect(self._close_window)
+        main_layout.addWidget(close_button)
+        
+        self.edit_button = QPushButton("Edit Activity Categories")
+        self.edit_button.setStyleSheet("QPushButton { padding: 10px; border-radius: 5px; }")
         self.edit_button.clicked.connect(self._toggle_category_editor)
-        button_layout.addWidget(self.edit_button)
+        self.edit_button.setDisabled(True)
+        main_layout.addWidget(self.edit_button)
         
-        self.browser_button = QPushButton("Open Mini Browser")
-        self.browser_button.clicked.connect(self._show_mini_browser)
-        button_layout.addWidget(self.browser_button)
-        
-        left_layout.addLayout(button_layout)
-        
-        # Add left panel to main layout
-        main_layout.addWidget(left_panel)
-        
-        # Create right panel for category editor
+        # Create category editor panel
         self._category_editor = CategoryEditor(self.event_processor, self.categorizer)
         self._category_editor.hide()
         main_layout.addWidget(self._category_editor)
         
         # Set initial size
-        size = self.settings["notification"]["default"]
+        size = self.settings.get("window_sizes.notification.default")
         self.resize(size["width"], size["height"])
         self._center_on_screen()
         
@@ -103,14 +124,38 @@ class NotificationWindow(QMainWindow):
             prod_pct: Productive activity percentage
             active_pct: Active time percentage
         """
-        message = (
-            f"In the last 5 minutes:\n"
-            f"• {proc_pct:.1f}% procrastinating\n"
-            f"• {unclear_pct:.1f}% unclear\n"
-            f"• {prod_pct:.1f}% productive\n"
-            f"• {active_pct:.1f}% active time"
-        )
-        self.message_label.setText(message)
+        # Check if enough time has passed since last shown
+        now = datetime.now()
+        if self._last_shown is not None:
+            delay_seconds = self.settings.get("delay_showing_popup_again_seconds")
+            time_since_last = (now - self._last_shown).total_seconds()
+            if time_since_last < delay_seconds:
+                print(f"Skipping popup, only {time_since_last:.1f}s since last shown (minimum delay: {delay_seconds}s)")
+                return
+
+        # Update pie chart
+        series = QPieSeries()
+        if prod_pct > 0:
+            slice = series.append(f"Productive ({prod_pct:.0f}%)", prod_pct)
+            slice.setBrush(Qt.GlobalColor.green)
+        if proc_pct > 0:
+            slice = series.append(f"Procrastinating ({proc_pct:.0f}%)", proc_pct)
+            slice.setBrush(Qt.GlobalColor.red)
+        if unclear_pct > 0:
+            slice = series.append(f"Unclear ({unclear_pct:.0f}%)", unclear_pct)
+            slice.setBrush(Qt.GlobalColor.gray)
+            
+        chart = QChart()
+        chart.addSeries(series)
+        chart.setTitle("Activity Breakdown")
+        chart.legend().setVisible(True)
+        chart.legend().setAlignment(Qt.AlignmentFlag.AlignRight)
+        chart.legend().setFont(QFont("Arial", 10))
+        
+        self.chart_view.setChart(chart)
+        
+        # Update last shown time and show window
+        self._last_shown = now
         self.show()
         
     def _toggle_category_editor(self) -> None:
@@ -119,45 +164,43 @@ class NotificationWindow(QMainWindow):
             # Show category editor
             self._category_editor.show()
             self._category_editor.update_table()
-            self.edit_button.setText("Hide Categorization")
+            self.edit_button.setText("Hide Categories")
             
             # Expand window
-            size = self.settings["notification"]["expanded"]
+            size = self.settings.get("window_sizes.notification.expanded")
             self.resize(size["width"], size["height"])
         else:
             # Hide category editor
             self._category_editor.hide()
-            self.edit_button.setText("Edit Categorization")
+            self.edit_button.setText("Edit Categories")
             
             # Shrink window
-            size = self.settings["notification"]["default"]
+            size = self.settings.get("window_sizes.notification.default")
             self.resize(size["width"], size["height"])
             
         self._center_on_screen()
         
-    def _show_mini_browser(self) -> None:
-        """Show the mini browser window."""
-        if not self._browser_window:
-            self._browser_window = QMainWindow(self)
-            self._browser_window.setWindowTitle("Mini Browser")
-            self._browser_window.setWindowFlags(Qt.WindowType.WindowStaysOnTop)
+    def _close_window(self) -> None:
+        """Safely close the notification window."""
+        try:
+            if self._browser_window:
+                self._browser_window.close()
+                self._browser_window = None
+            if self._category_editor:
+                self._category_editor.hide()
             
-            web_view = QWebEngineView()
-            web_view.setUrl(QUrl("https://singular-cendol-4f9273.netlify.app/"))
-            self._browser_window.setCentralWidget(web_view)
-            
-            # Set size and position
-            size = self.settings["browser"]
-            self._browser_window.resize(size["width"], size["height"])
-            
-            # Center on screen
-            frame_geometry = self._browser_window.frameGeometry()
-            screen_center = self.screen().availableGeometry().center()
-            frame_geometry.moveCenter(screen_center)
-            self._browser_window.move(frame_geometry.topLeft())
-            
-        self._browser_window.show()
-        self._browser_window.raise_()
+            # Start timer from now because we don't want to close window and have it come back fast if it was open a while
+            self._last_shown = datetime.now()
+
+            self.hide()  # Hide instead of close to prevent crash
+        except Exception as e:
+            print(f"Error closing window: {e}")
+            self.hide()  # Fallback to just hiding the window
+        
+    def _open_chat(self) -> None:
+        """Open the chat in the default browser."""
+        webbrowser.open("https://singular-cendol-4f9273.netlify.app/")
+        self._close_window()
         
     def closeEvent(self, event) -> None:
         """Handle window close event.
@@ -165,9 +208,11 @@ class NotificationWindow(QMainWindow):
         Args:
             event: Close event
         """
-        if self._browser_window:
-            self._browser_window.close()
-        super().closeEvent(event)
+        try:
+            self._close_window()
+            event.accept()  # Accept the close event
+        except:
+            event.ignore()  # If something goes wrong, prevent the close
 
 class CategoryEditor(QWidget):
     """Widget for editing activity categorizations."""

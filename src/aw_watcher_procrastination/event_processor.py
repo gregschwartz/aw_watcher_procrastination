@@ -8,9 +8,9 @@ from aw_client import ActivityWatchClient
 from rich.table import Table
 from rich.console import Console
 
-from src.activity_categorizer import ActivityCategorizer, ActivityCategory
-from src.time_utils import format_duration, format_time_ago
-from src.settings import load_settings
+from .activity_categorizer import ActivityCategorizer, ActivityCategory
+from .time_utils import format_duration, format_time_ago
+from .settings import Settings
 
 class EventProcessor:
     """Processes and analyzes ActivityWatch events."""
@@ -24,7 +24,7 @@ class EventProcessor:
         """
         self.client = client
         self.categorizer = categorizer
-        self.settings = load_settings()
+        self.settings = Settings()
     
     def get_recent_activities(self, time_window: timedelta = timedelta(minutes=5), debug_level: int = 0) -> Optional[List]:
         """Get recent activities within the time window.
@@ -37,7 +37,7 @@ class EventProcessor:
             List of processed events or None if no events found
         """
         start_time = datetime.now(tzlocal()) - time_window
-        bucket_ids_to_skip = self.settings["bucket_ids_to_skip"]
+        bucket_ids_to_skip = self.settings.get("bucket_ids_to_skip")
         
         all_events = None
         for bucket_id in self.client.get_buckets():
@@ -110,7 +110,7 @@ class EventProcessor:
             event.title = title
             event.url = url
             
-        if debug_level >= 1:
+        if debug_level >= 2:
             self.print_events(events, title=f"Events from {bucket_id}")
 
         return events
