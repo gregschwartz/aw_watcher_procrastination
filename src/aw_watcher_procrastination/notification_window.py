@@ -3,7 +3,7 @@
 from typing import Optional
 import webbrowser
 from datetime import datetime
-from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtCore import Qt, QUrl, QMargins
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QTableWidget, QTableWidgetItem,
@@ -55,11 +55,11 @@ class NotificationWindow(QMainWindow):
         main_layout = QVBoxLayout()
         central_widget.setLayout(main_layout)
 
-        title = QLabel("Procrastinating?")
+        title = QLabel("Are you being productive?")
         title.setStyleSheet("QLabel { font-size: 24px; font-weight: bold; }")
         main_layout.addWidget(title)
 
-        subtitle = QLabel(f"In the last {self.settings.get('notifications.check_last_seconds')/60:.0f} minutes:")
+        subtitle = QLabel(f"You've spent the last {self.settings.get('notifications.check_last_seconds')/60:.0f} minutes:")
         subtitle.setStyleSheet("QLabel { font-size: 18px; }")
         main_layout.addWidget(subtitle)
         
@@ -72,6 +72,9 @@ class NotificationWindow(QMainWindow):
         self.chart_view = QChartView()
         self.chart_view.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.chart_view.setMinimumHeight(200)  # Set minimum height for better visibility
+        
+        # Remove margins from chart container layout for better space usage
+        chart_layout.setContentsMargins(0, 0, 0, 0)
         chart_layout.addWidget(self.chart_view)
         
         main_layout.addWidget(chart_container)
@@ -92,11 +95,19 @@ class NotificationWindow(QMainWindow):
         close_button.clicked.connect(self._close_window)
         main_layout.addWidget(close_button)
         
-        self.edit_button = QPushButton("Edit Activity Categories")
-        self.edit_button.setStyleSheet("QPushButton { padding: 10px; border-radius: 5px; }")
-        self.edit_button.clicked.connect(self._toggle_category_editor)
-        self.edit_button.setDisabled(True)
-        main_layout.addWidget(self.edit_button)
+        # self.edit_button = QPushButton("Edit Activity Categories")
+        # self.edit_button.setStyleSheet("QPushButton { padding: 10px; border-radius: 5px; }")
+        # self.edit_button.clicked.connect(self._toggle_category_editor)
+        # self.edit_button.setDisabled(True)
+        # main_layout.addWidget(self.edit_button)
+        
+        # Set tab order for keyboard navigation
+        chat_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        close_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        # self.edit_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        
+        # Set initial focus to chat button
+        chat_button.setFocus()
         
         # Create category editor panel
         self._category_editor = CategoryEditor(self.event_processor, self.categorizer)
@@ -135,23 +146,33 @@ class NotificationWindow(QMainWindow):
 
         # Update pie chart
         series = QPieSeries()
-        if prod_pct > 0:
-            slice = series.append(f"Productive ({prod_pct:.0f}%)", prod_pct)
-            slice.setBrush(Qt.GlobalColor.green)
         if proc_pct > 0:
-            slice = series.append(f"Procrastinating ({proc_pct:.0f}%)", proc_pct)
+            slice = series.append(f"{proc_pct:.0f}% Procrastinating", proc_pct)
             slice.setBrush(Qt.GlobalColor.red)
+        if prod_pct > 0:
+            slice = series.append(f"{prod_pct:.0f}% Productive", prod_pct)
+            slice.setBrush(Qt.GlobalColor.darkGreen)
         if unclear_pct > 0:
-            slice = series.append(f"Unclear ({unclear_pct:.0f}%)", unclear_pct)
-            slice.setBrush(Qt.GlobalColor.gray)
+            slice = series.append(f"{unclear_pct:.0f}% Unclear", unclear_pct)
+            slice.setBrush(Qt.GlobalColor.darkGray)
             
         chart = QChart()
         chart.addSeries(series)
-        chart.setTitle("Activity Breakdown")
+        chart.setBackgroundVisible(False)
         chart.legend().setVisible(True)
-        chart.legend().setAlignment(Qt.AlignmentFlag.AlignRight)
-        chart.legend().setFont(QFont("Arial", 10))
+        chart.legend().setAlignment(Qt.AlignmentFlag.AlignLeft)
+        chart.legend().setFont(QFont("Arial", 18))
         
+        # Minimize margins while keeping some spacing for readability
+        chart.setMargins(QMargins(5, 5, 5, 5))
+        series.setHoleSize(0.0)
+        series.setPieSize(0.8)
+        
+        # # Set chart title font
+        # title_font = QFont("Arial", 14)
+        # title_font.setBold(False)
+        # chart.setTitleFont(title_font)
+
         self.chart_view.setChart(chart)
         
         # Update last shown time and show window
@@ -203,16 +224,18 @@ class NotificationWindow(QMainWindow):
         self._close_window()
         
     def closeEvent(self, event) -> None:
-        """Handle window close event.
+        """Handle window close event. Prevents the window from being destroyed by
+        hiding it instead, which allows it to be shown again later.
         
         Args:
-            event: Close event
+            event: Close event from Qt
         """
         try:
             self._close_window()
             event.accept()  # Accept the close event
+            event.ignore()
         except:
-            event.ignore()  # If something goes wrong, prevent the close
+            pass
 
 class CategoryEditor(QWidget):
     """Widget for editing activity categorizations."""
