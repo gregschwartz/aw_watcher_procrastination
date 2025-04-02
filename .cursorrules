@@ -5,6 +5,7 @@ Do not write tests for protected or private functions/methods.
 Rather than having many print statements across multiple lines, prefer print statements that output everything on one line. 
 
 Strongly prefer using a library instead of reinventing the wheel. 
+Don't make functions for single line checks used once.
 
 You can suggest inserting up to 1 copy of the same line.
 
