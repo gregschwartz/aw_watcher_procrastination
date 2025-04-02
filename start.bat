@@ -48,7 +48,7 @@ if exist "%PROJECT_ROOT%\requirements.txt" (
 )
 
 :: Backup the existing settings file
-if exist "%PROJECT_ROOT%\settings.json" (
+if exist "%PROJECT_ROOT%\settings.json" and not diff "%PROJECT_ROOT%\settings.json" "%PROJECT_ROOT%\settings.backup.1.json" >nul 2>nul (
     echo Backing up existing settings file...
 
     :: Keep 2 old backups
@@ -60,7 +60,7 @@ if exist "%PROJECT_ROOT%\settings.json" (
     )
 
     copy "%PROJECT_ROOT%\settings.json" "%PROJECT_ROOT%\settings.backup.1.json"
-) else (
+) else if not exist "%PROJECT_ROOT%\settings.json" (
     echo No settings file found, creating a new one...
     copy "%PROJECT_ROOT%\settings.example.json" "%PROJECT_ROOT%\settings.json"
 )

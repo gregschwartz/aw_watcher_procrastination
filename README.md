@@ -74,7 +74,12 @@ Start the application normally:
     - macOS: `brew install qt@6`
     - Ubuntu/Debian: `apt-get install qt6-webengine-dev`
 
-5. Start the application directly:
+6. Copy settings.json.example to settings.json
+    ```bash
+    cp settings.json.example settings.json
+    ```
+
+7. Start the application directly:
     ```bash
     python -m src.aw_watcher_procrastination.main
     ```
