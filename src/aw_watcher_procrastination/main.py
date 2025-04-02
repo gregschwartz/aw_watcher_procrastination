@@ -43,7 +43,8 @@ def main():
             print("Triggering alert")
             notification_window.show_alert(proc_pct, unclear_pct, prod_pct, active_pct)
         else:
-            print(f"proc_pct >= procrastination_threshold: {proc_pct >= procrastination_threshold}, active_pct < active_threshold: {active_pct < active_threshold}")
+            pass
+            # print(f"proc_pct >= procrastination_threshold: {proc_pct >= procrastination_threshold}, active_pct < active_threshold: {active_pct < active_threshold}")
 
     last_check = datetime.now() - timedelta(days=1) # so it checks immediately
     def check_if_needed():
