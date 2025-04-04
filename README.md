@@ -49,8 +49,8 @@ Start the application normally:
 
 3. Clone this repository:
     ```bash
-    git clone https://github.com/gregschwartz/aw-watcher-procrastination.git
-    cd aw-watcher-procrastination
+    git clone https://github.com/gregschwartz/aw_watcher_procrastination.git
+    cd aw_watcher_procrastination
     ```
 
 4. Create and activate a virtual environment:
