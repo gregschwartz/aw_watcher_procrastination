@@ -2,12 +2,12 @@
 
 from typing import Optional
 import webbrowser
-from datetime import datetime
-from PyQt6.QtCore import Qt, QUrl, QMargins
+from datetime import datetime, timedelta
+from PyQt6.QtCore import Qt, QMargins, QTimer
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QTableWidget, QTableWidgetItem,
-    QHeaderView
+    QHeaderView, QDialog, QInputDialog
 )
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtCharts import QChart, QPieSeries, QChartView
@@ -38,6 +38,9 @@ class NotificationWindow(QMainWindow):
         self._browser_window: Optional[QMainWindow] = None
         self._category_editor: Optional[CategoryEditor] = None
         self._last_shown: Optional[datetime] = None
+        
+        self._break_end_time: Optional[datetime] = None
+        self._break_duration_minutes: Optional[int] = None
 
         # Set up the UI
         self._init_ui()
@@ -95,6 +98,11 @@ class NotificationWindow(QMainWindow):
         close_button.clicked.connect(self._close_window)
         main_layout.addWidget(close_button)
         
+        break_button = QPushButton("I'm taking a break")
+        break_button.setStyleSheet("QPushButton { padding: 10px; border-radius: 5px; }")
+        break_button.clicked.connect(self._show_break_dialog)
+        main_layout.addWidget(break_button)
+        
         # self.edit_button = QPushButton("Edit Activity Categories")
         # self.edit_button.setStyleSheet("QPushButton { padding: 10px; border-radius: 5px; }")
         # self.edit_button.clicked.connect(self._toggle_category_editor)
@@ -104,6 +112,7 @@ class NotificationWindow(QMainWindow):
         # Set tab order for keyboard navigation
         chat_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         close_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        break_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         # self.edit_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         
         # Set initial focus to chat button
@@ -126,7 +135,7 @@ class NotificationWindow(QMainWindow):
         frame_geometry.moveCenter(screen_center)
         self.move(frame_geometry.topLeft())
         
-    def show_alert(self, proc_pct: float, unclear_pct: float, prod_pct: float, active_pct: float) -> None:
+    def show_alert(self, proc_pct: float, unclear_pct: float, prod_pct: float, active_pct: float, debug_level: int = 0) -> None:
         """Show a procrastination alert with the given percentages.
         
         Args:
@@ -135,13 +144,25 @@ class NotificationWindow(QMainWindow):
             prod_pct: Productive activity percentage
             active_pct: Active time percentage
         """
-        # Check if enough time has passed since last shown
         now = datetime.now()
+        
+        # Check if break is over and show welcome back dialog if needed
+        if self._break_end_time:
+            if now >= self._break_end_time:
+                self._show_welcome_back_dialog()
+                return
+            else:
+                if debug_level >= 1:
+                    print(f"Skipping popup, on break. Current time: {now}, break ends at {self._break_end_time}")
+                return
+            
+        # Check if enough time has passed since last shown
         if self._last_shown is not None:
             delay_seconds = self.settings.get("delay_showing_popup_again_seconds")
             time_since_last = (now - self._last_shown).total_seconds()
             if time_since_last < delay_seconds:
-                print(f"Skipping popup, only {time_since_last:.1f}s since last shown (minimum delay: {delay_seconds}s)")
+                if debug_level >= 1:
+                    print(f"Skipping popup, only {time_since_last:.1f}s since last shown (minimum delay: {delay_seconds}s)")
                 return
 
         # Update pie chart
@@ -178,7 +199,46 @@ class NotificationWindow(QMainWindow):
         # Update last shown time and show window
         self._last_shown = now
         self.show()
-        
+
+    def _show_welcome_back_dialog(self) -> None:
+        """Show a welcome back dialog when returning from a break."""
+        # Clear break state first so we have the duration for the message
+        duration = self._break_duration_minutes
+        self._break_end_time = None
+        self._break_duration_minutes = None
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Welcome Back!")
+        layout = QVBoxLayout()
+        dialog.setLayout(layout)
+
+        # Add welcome message
+        welcome_label = QLabel(f"Hope you had a great {duration} minute break!")
+        welcome_label.setStyleSheet("QLabel { font-size: 24px; font-weight: bold; }")
+        layout.addWidget(welcome_label)
+
+        ready_label = QLabel("Ready to get back to work?")
+        ready_label.setStyleSheet("QLabel { font-size: 18px; }")
+        layout.addWidget(ready_label)
+
+        # Add buttons
+        chat_button = QPushButton("Need help getting started? Chat with Procrastination Assistant")
+        chat_button.setStyleSheet("QPushButton { color: white; background-color: #28a745; padding: 10px; border-radius: 5px; font-weight: bold; }")
+        chat_button.clicked.connect(lambda: [dialog.close(), self._open_chat()])
+        layout.addWidget(chat_button)
+
+        ready_button = QPushButton("I'm ready to work!")
+        ready_button.setStyleSheet("QPushButton { padding: 10px; border-radius: 5px; background-color: #28a745; }")
+        ready_button.clicked.connect(lambda: [dialog.close(), self._close_window()])
+        layout.addWidget(ready_button)
+
+        more_break_button = QPushButton("I need more break time...")
+        more_break_button.setStyleSheet("QPushButton { padding: 10px; border-radius: 5px; }")
+        more_break_button.clicked.connect(lambda: [dialog.close(), self._show_break_dialog()])
+        layout.addWidget(more_break_button)
+
+        dialog.exec()
+
     def _toggle_category_editor(self) -> None:
         """Toggle the visibility of the category editor panel."""
         if self._category_editor.isHidden():
@@ -223,6 +283,65 @@ class NotificationWindow(QMainWindow):
         webbrowser.open("https://singular-cendol-4f9273.netlify.app/")
         self._close_window()
         
+    def _show_break_dialog(self) -> None:
+        """Show dialog for selecting break duration."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Take a Break")
+        layout = QVBoxLayout()
+        dialog.setLayout(layout)
+
+        # Calculate end of day (4am tomorrow)
+        now = datetime.now()
+        tomorrow_4am = (now + timedelta(days=1)).replace(hour=4, minute=0, second=0, microsecond=0)
+        rest_of_day_minutes = int((tomorrow_4am - now).total_seconds() / 60)
+
+        # Create buttons for predefined durations
+        durations = [
+            ("5 minutes", 5),
+            ("10 minutes", 10),
+            ("15 minutes", 15),
+            ("30 minutes", 30),
+            (f"Rest of the day", rest_of_day_minutes)
+        ]
+
+        for label, minutes in durations:
+            btn = QPushButton(label)
+            btn.clicked.connect(lambda checked, m=minutes: self._take_break(m, dialog))
+            layout.addWidget(btn)
+
+        # Add custom time input directly in dialog
+        custom_btn = QPushButton("Enter exact time")
+        custom_btn.clicked.connect(lambda: self._handle_custom_time(dialog))
+        layout.addWidget(custom_btn)
+
+        dialog.exec()
+
+    def _handle_custom_time(self, dialog: QDialog) -> None:
+        """Handle custom time input.
+        
+        Args:
+            dialog: Parent dialog to close
+        """
+        custom_minutes, ok = QInputDialog.getInt(
+            self, "Enter Break Duration",
+            "Enter break duration in minutes:",
+            min=1, max=24*60  # Max 24 hours
+        )
+        if ok:
+            self._take_break(custom_minutes, dialog)
+
+    def _take_break(self, minutes: int, dialog: QDialog) -> None:
+        """Take a break for the specified duration.
+        
+        Args:
+            minutes: Break duration in minutes
+            dialog: Dialog to close
+        """
+        self._break_duration_minutes = minutes
+        self._break_end_time = datetime.now() + timedelta(minutes=minutes)
+        dialog.close()
+        self._close_window()
+
     def closeEvent(self, event) -> None:
         """Handle window close event. Prevents the window from being destroyed by
         hiding it instead, which allows it to be shown again later.
