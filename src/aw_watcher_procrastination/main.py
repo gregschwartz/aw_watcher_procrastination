@@ -5,7 +5,8 @@ import sys
 from datetime import timedelta, datetime
 import signal
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtGui import QIcon
 from aw_client import ActivityWatchClient
 
 from .activity_categorizer import ActivityCategorizer
@@ -18,7 +19,26 @@ def main():
     """Main entry point for the application."""
     print("Starting application...")
 
+    # Set application attributes before creating QApplication
+    if sys.platform == "darwin":
+        # Ensure we're a background application on macOS
+        import os
+        os.environ['LSBackgroundOnly'] = '1'
+        QApplication.setAttribute(Qt.ApplicationAttribute.AA_PluginApplication)
+        QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeMenuBar)
+
     app = QApplication(sys.argv)
+    
+    # Set application properties
+    app.setApplicationName("Procrastination  Assistant")
+    app.setApplicationDisplayName("Procrastination Assistant")
+    app.setOrganizationName("Greg Schwartz")
+    app.setOrganizationDomain("gregschwartz.net")
+    
+    # Set as accessory application on macOS (prevents dock icon)
+    if sys.platform == "darwin":
+        app.setAttribute(Qt.ApplicationAttribute.AA_PluginApplication, True)
+    
     client = ActivityWatchClient("aw-procrastination-monitor")
     client.connect()  # Explicitly connect the client
     

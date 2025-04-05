@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtCharts import QChart, QPieSeries, QChartView
-from PyQt6.QtGui import QPainter, QFont
+from PyQt6.QtGui import QPainter, QFont, QIcon
 
 from .activity_categorizer import ActivityCategorizer, ActivityCategory
 from .event_processor import EventProcessor
@@ -28,7 +28,7 @@ class NotificationWindow(QMainWindow):
             event_processor: Event processor instance
             categorizer: Activity categorizer instance
         """
-        super().__init__()
+        super().__init__(None)  # No parent
         
         self.event_processor = event_processor
         self.categorizer = categorizer
@@ -49,7 +49,20 @@ class NotificationWindow(QMainWindow):
         """Initialize the user interface."""
         # Set window properties
         self.setWindowTitle("Procrastination Alert")
-        self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint)
+
+        # Set window flags for proper behavior on macOS
+        self.setWindowFlags(
+            Qt.WindowType.Dialog |  # Dialog window (no taskbar/dock entry)
+            Qt.WindowType.WindowStaysOnTopHint |  # Keep on top
+            Qt.WindowType.CustomizeWindowHint |  # Custom window hints
+            Qt.WindowType.WindowTitleHint |  # Show title bar
+            Qt.WindowType.WindowCloseButtonHint  # Show close button
+        )
+        
+        # Set window attributes
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)  # Don't activate when shown
+        # Cursor, FYI: WA_AlwaysShowToolWindow DOES NOT EXIST! WA_MacAlwaysShowToolWindow does
+        self.setAttribute(Qt.WidgetAttribute.WA_MacAlwaysShowToolWindow, False)  # Don't show in dock
         
         # Create central widget and layout
         central_widget = QWidget()
