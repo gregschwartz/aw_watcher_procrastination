@@ -31,20 +31,24 @@ def main():
     check_interval = settings.get("notifications.check_interval_seconds")
     procrastination_threshold = settings.get("thresholds.min_procrastination_percent")
     active_threshold = settings.get("thresholds.min_active_percent")
+
+    global debug_level
+    debug_level = 1
     
     def check_procrastination():
         """Check for procrastination and show notification if needed."""
-        proc_pct, unclear_pct, prod_pct, active_pct = event_processor.calculate_procrastination_percentage(debug_level=1)
+        global debug_level
+        proc_pct, unclear_pct, prod_pct, active_pct = event_processor.calculate_procrastination_percentage(debug_level=debug_level)
         
         # make ascii stacked bar chart
         print(f"{'😭' * ceil(proc_pct / 2) if proc_pct > 0.1 else ''}{'❓' * ceil(unclear_pct / 2) if unclear_pct > 0.0 else ''}{'👍' * ceil(prod_pct / 2) if prod_pct > 0.1 else ''} -- {proc_pct:.0f}% {unclear_pct:.0f}% {prod_pct:.0f}%")
 
         if proc_pct >= procrastination_threshold and active_pct >= active_threshold:
-            print("Triggering alert")
+            if debug_level >= 1:
+                print("Triggering alert")
             notification_window.show_alert(proc_pct, unclear_pct, prod_pct, active_pct)
-        else:
-            pass
-            # print(f"proc_pct >= procrastination_threshold: {proc_pct >= procrastination_threshold}, active_pct < active_threshold: {active_pct < active_threshold}")
+        elif debug_level >= 2:
+            print(f"proc_pct >= procrastination_threshold: {proc_pct >= procrastination_threshold}, active_pct < active_threshold: {active_pct < active_threshold}")
 
     last_check = datetime.now() - timedelta(days=1) # so it checks immediately
     def check_if_needed():
